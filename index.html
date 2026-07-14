@@ -72,6 +72,8 @@ h1,h2,h3,.serif{font-family:Georgia,"Times New Roman",serif}
 .icon-btn{flex:0 0 auto;width:48px;height:48px;border-radius:12px;border:1px solid var(--line);
   background:rgba(0,0,0,.2);color:var(--text);font-size:20px;cursor:pointer;display:grid;place-items:center}
 .icon-btn:active{transform:scale(.92)}
+.icon-btn.city{font-size:18px;filter:grayscale(1);opacity:.55}
+.icon-btn.city.on{filter:none;opacity:1;border-color:var(--amber);background:rgba(232,167,44,.18)}
 .scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;flex:1;min-height:0}
 .hint{color:var(--muted);font-size:12.5px;text-align:center;margin:6px 2px}
 
@@ -185,7 +187,7 @@ h1,h2,h3,.serif{font-family:Georgia,"Times New Roman",serif}
     </div>
     <div style="height:16px"></div>
     <div class="card-soft" style="display:flex;flex-direction:column;flex:1;min-height:0">
-      <p class="section-label">Wer spielt mit? <span style="text-transform:none;letter-spacing:0">(min. 2)</span></p>
+      <p class="section-label">Wer spielt mit? <span style="text-transform:none;letter-spacing:0">(min. 2 · 🏙️ = Stadtkind markieren)</span></p>
       <div id="players" class="scroll"></div>
       <button class="btn ghost sm" id="addPlayer" style="margin-top:8px">➕ Spieler dazu</button>
     </div>
@@ -599,11 +601,67 @@ const REGELN = [
  `Schätzelein-Regel: Das Bier des Nachbarn heißt ab jetzt "Schätzelein". Wer normal drüber redet, 1 Schluck.`
 ];
 
+// Tick-Tick-Bumm – wird über fill() gerendert. Nutzbare Platzhalter: {stadtkind} {spieler} {links} {rechts} {sN}
 const BUMM_TASKS = [
- `Reihum: Biermarken nennen!`, `Reihum: Dörfer & Kaff-Namen!`, `Reihum: Bauernhof-Tiere!`,
- `Reihum: Traktor- & Automarken!`, `Reihum: Dinge auf dem Feldweg!`, `Reihum: Feste im Dorfjahr!`,
- `Reihum: Deutsche Schlager!`, `Reihum: Gemüse & Feldfrüchte!`, `Reihum: Ausreden fürs Zuspätkommen!`,
- `Reihum: Werkzeuge aus dem Schuppen!`, `Reihum: Wörter im Dorf-Dialekt!`, `Einfach weitergeben – kein Thema!`
+ // ── Dorf-Wortketten (reihum weitergeben bis zum Bumm) ──
+ `Reihum: Biermarken nennen!`,
+ `Reihum: Dörfer & Kaff-Namen im Umkreis!`,
+ `Reihum: Tiere auf dem Bauernhof!`,
+ `Reihum: Traktor- & Landmaschinen-Marken!`,
+ `Reihum: Dinge, die auf dem Feldweg rumliegen!`,
+ `Reihum: Feste im Dorfjahr!`,
+ `Reihum: Deutsche Schlager & Ballermann-Hits!`,
+ `Reihum: Gemüse & Feldfrüchte vom Acker!`,
+ `Reihum: Ausreden fürs Zuspätkommen zum Melken!`,
+ `Reihum: Werkzeuge aus Opas Schuppen!`,
+ `Reihum: Wörter im breitesten Dorf-Dialekt!`,
+ `Reihum: Typische Dorf-Vornamen!`,
+ `Reihum: Sachen, die im Bulli oder Kombi rumfliegen!`,
+ `Reihum: Dinge, die man aufm Schützenfest verliert!`,
+ `Reihum: Vereine, in denen man aufm Dorf ist!`,
+ `Reihum: Schnaps- & Likörsorten aus Omas Schrank!`,
+ `Reihum: Getränke, die's auf jedem Dorffest gibt!`,
+ `Reihum: Dinge auf der Ladefläche vom Anhänger!`,
+ `Reihum: Wurst- & Grillsorten!`,
+ `Reihum: Marken von Gummistiefeln & Arbeitsklamotten!`,
+ `Reihum: Geräusche in einer Nacht aufm Dorf!`,
+ `Reihum: Dinge im Vorgarten mit Jägerzaun!`,
+ `Reihum: Spitznamen für den Dorf-Trecker!`,
+ `Reihum: Wetter-Sprüche, die die Alten immer sagen!`,
+ // ── Stadt vs. Land – wer stockt oder Quatsch labert (Stadtkind lässt grüßen), trinkt ──
+ `Reihum: Kuh-Rassen! Wer Quatsch sagt (Stadtkind lässt grüßen), trinkt.`,
+ `Reihum: Landwirtschaftliche Geräte! Stocken = trinken.`,
+ `Reihum: Teile am Trecker! Wer nix weiß, trinkt.`,
+ `Reihum: Nutzpflanzen auf dem Feld! "Hafermilch" zählt nicht.`,
+ `Reihum: Was macht man aufm Bauernhof vor 6 Uhr? Stocken = trinken.`,
+ `Reihum: Getreidesorten! Wer "Hafermilch" sagt, trinkt doppelt.`,
+ `Reihum: Womit füttert man Schweine? {stadtkind} fängt an – viel Spaß.`,
+ `Reihum: Was gehört in einen Kuhstall? Quatsch labern = trinken.`,
+ // ── Direkt aufs Stadtkind gemünzt ──
+ `{stadtkind}, nenne 3 Kuh-Rassen. Kommt nur "die braunen und die weißen" = {s2}.`,
+ `{stadtkind}, wo kommt die Milch wirklich her? Sagst du "aus'm Supermarkt" = {s3}.`,
+ `{stadtkind}, imitiere eine Kuh. Klingt's wie 'ne Straßenbahn = {s2}.`,
+ `Erdbeeren wachsen wo? Wer "am Baum" sagt (Stadtkind?!) = {s2}.`,
+ `{stadtkind}, nenne ein Nutztier, das keine Eier legt. Panik = {s1}.`,
+ `{stadtkind}, fang die Trecker-Teile-Runde an. Erstes Stocken = {s2}.`,
+ `Falls das Stadtkind am Tisch lieber Hafermilch als Kuhmilch nimmt: {stadtkind} trinkt {s2}.`,
+ `{stadtkind}, wie lang trägt eine Kuh ungefähr? Keine Ahnung = {s1}, alle anderen raten mit.`,
+ // ── Schnell-Aufgaben bis zum Bumm ──
+ `Zunge schnalzen und weitergeben – wer patzt, hält länger fest.`,
+ `Reihum auf "Kuh" reimen – kein Reim, schnell weiter.`,
+ `Jeder ein anderes Tier-Geräusch beim Weitergeben. Doppelt gemacht = trinken.`,
+ `Trecker-Sound machen, dann erst weitergeben.`,
+ `Reihum je ein Wort einer Geschichte – muss Sinn ergeben.`,
+ `Klatschen, schnipsen, weitergeben – im Takt bleiben!`,
+ `Jeder ein Dorf-Wort im Dialekt, dann flott weiter.`,
+ `Reim auf "Bier" finden und weitergeben – schnell!`,
+ `Namen vom linken Nachbarn rückwärts sagen, dann weiter.`,
+ `Jeder eine andere Melk-Bewegung, dann weitergeben.`,
+ `{spieler}, mach den ersten Tier-Sound – dann geht's reihum weiter.`,
+ `{links} beginnt: reihum Schlagerzeilen singen, immer weitergeben.`,
+ `Ein ernstgemeintes Kompliment an den Nachbarn, dann Handy weiter.`,
+ `Bis 10 zählen im Dialekt, jede Zahl ein anderer – dann weiter.`,
+ `Einfach weitergeben – kein Thema, reines Glück!`
 ];
 
 /* ============================ STATE ============================ */
@@ -639,6 +697,8 @@ function schluck(n){
 function fill(txt, players){
   let out = txt.replace(/\{s(\d+)\}/g,(m,n)=>schluck(parseInt(n,10)));
   out = out.replace(/\{alle\}/g,'Alle');
+  const sk = (state.stadtkind && players && players.includes(state.stadtkind)) ? state.stadtkind : 'das Stadtkind am Tisch';
+  out = out.replace(/\{stadtkind\}/g, sk);
   // pool of distinct names, refill when empty
   let pool=[]; const cache={};
   const refill=()=>{ pool=players.slice(); for(let i=pool.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[pool[i],pool[j]]=[pool[j],pool[i]];} };
@@ -667,10 +727,13 @@ function renderPlayers(container, minRows){
     const row=document.createElement('div'); row.className='player-row';
     const inp=document.createElement('input');
     inp.type='text'; inp.value=name; inp.placeholder='Name '+(i+1); inp.maxLength=16;
-    inp.addEventListener('input',()=>{ state.players[i]=inp.value; save(); });
+    inp.addEventListener('input',()=>{ const old=state.players[i]; state.players[i]=inp.value; if(state.stadtkind===old) state.stadtkind=inp.value.trim(); save(); });
+    const city=document.createElement('button'); city.className='icon-btn city'+(name.trim() && state.stadtkind===name.trim()?' on':'');
+    city.textContent='🏙️'; city.title='Als Stadtkind markieren';
+    city.addEventListener('click',()=>{ const nm=(state.players[i]||'').trim(); if(!nm){ toast('Erst einen Namen eintragen 🏙️'); return; } state.stadtkind = (state.stadtkind===nm)? '' : nm; save(); renderAllPlayers(); vibrate(10); });
     const del=document.createElement('button'); del.className='icon-btn'; del.textContent='✕';
-    del.addEventListener('click',()=>{ state.players.splice(i,1); save(); renderAllPlayers(); vibrate(8); });
-    row.append(inp,del); container.append(row);
+    del.addEventListener('click',()=>{ const rm=(state.players[i]||'').trim(); if(state.stadtkind===rm) state.stadtkind=''; state.players.splice(i,1); save(); renderAllPlayers(); vibrate(8); });
+    row.append(inp,city,del); container.append(row);
   });
 }
 function renderAllPlayers(){ renderPlayers($('#players'), 2); renderPlayers($('#playersSet'), 1); }
@@ -820,7 +883,7 @@ function resetBumm(){ clearBumm(); bummArmed=false; bummOrb.className='bummorb';
 function clearBumm(){ if(bummId){clearTimeout(bummId);bummId=null;} if(bummTickId){clearInterval(bummTickId);bummTickId=null;} }
 function armBumm(){
   clearBumm(); bummArmed=true; bummOrb.className='bummorb'; bummOrb.textContent='💣';
-  bummTaskEl.textContent=BUMM_TASKS[(Math.random()*BUMM_TASKS.length)|0];
+  bummTaskEl.textContent=fill(BUMM_TASKS[(Math.random()*BUMM_TASKS.length)|0], activePlayers());
   bummTxt.textContent='Läuft! Schnell weitergeben …'; bummBtn.textContent='Läuft …';
   const total=10000+Math.random()*30000; const start=Date.now();
   bummTickId=setInterval(()=>{
