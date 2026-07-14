@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#1a2413">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Dorfkind">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-192.svg">
+<title>Dorfkind – Das Trinkspiel</title>
+<style>
+:root{
+  --amber:#e8a72c; --heu:#f2cf6b; --feld:#3a5226; --feld-tief:#2c3d1f;
+  --holz:#7a5230; --erde:#4a3520; --bg:#14200f; --bg2:#1c2a13;
+  --karte:#20301a; --karte2:#28381f; --text:#fdf3d9; --muted:#c9b98d;
+  --line:rgba(242,207,107,.16);
+  --safe-b:env(safe-area-inset-bottom,0px); --safe-t:env(safe-area-inset-top,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  color:var(--text);background:
+    radial-gradient(120% 90% at 50% -10%, #35471f 0%, var(--bg2) 42%, var(--bg) 100%);
+  background-attachment:fixed;
+  -webkit-user-select:none;user-select:none;
+  touch-action:manipulation;
+}
+body::after{ /* grain */
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:9999;opacity:.05;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+h1,h2,h3,.serif{font-family:Georgia,"Times New Roman",serif}
+#app{position:relative;height:100%;width:100%;max-width:520px;margin:0 auto;display:flex;flex-direction:column}
+
+/* Screens */
+.screen{position:absolute;inset:0;display:none;flex-direction:column;
+  padding:calc(14px + var(--safe-t)) 18px calc(16px + var(--safe-b));animation:fade .3s ease}
+.screen.active{display:flex}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* Buttons */
+.btn{border:none;border-radius:16px;font:inherit;font-weight:700;color:#20180a;
+  background:linear-gradient(180deg,var(--heu),var(--amber));
+  padding:16px 18px;min-height:54px;font-size:17px;cursor:pointer;
+  box-shadow:0 6px 0 #a9741a,0 10px 22px rgba(0,0,0,.35);
+  transition:transform .08s,box-shadow .08s;width:100%}
+.btn:active{transform:translateY(4px);box-shadow:0 2px 0 #a9741a,0 6px 14px rgba(0,0,0,.35)}
+.btn.ghost{background:transparent;color:var(--text);box-shadow:none;border:1.5px solid var(--line);font-weight:600}
+.btn.ghost:active{transform:scale(.97);background:rgba(255,255,255,.04)}
+.btn.sm{min-height:46px;font-size:15px;padding:12px 14px;border-radius:13px;box-shadow:0 4px 0 #a9741a,0 6px 12px rgba(0,0,0,.3)}
+.btn.sm:active{box-shadow:0 1px 0 #a9741a}
+
+/* Home */
+.hero{flex:0 0 auto;text-align:center;margin-top:4vh}
+.hero .emoji{font-size:52px;filter:drop-shadow(0 4px 10px rgba(0,0,0,.4))}
+.hero h1{font-size:40px;margin:6px 0 2px;letter-spacing:.5px;
+  background:linear-gradient(180deg,#fbe6a4,var(--amber));-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero .tag{color:var(--muted);font-size:14.5px;margin:0 0 2px}
+.card-soft{background:linear-gradient(180deg,var(--karte2),var(--karte));border:1px solid var(--line);
+  border-radius:20px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.section-label{font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin:0 0 10px;font-weight:700}
+
+/* Players */
+.player-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.player-row input{flex:1;background:rgba(0,0,0,.25);border:1px solid var(--line);color:var(--text);
+  border-radius:12px;padding:13px 14px;font:inherit;font-size:16px;min-height:48px}
+.player-row input:focus{outline:none;border-color:var(--amber)}
+.icon-btn{flex:0 0 auto;width:48px;height:48px;border-radius:12px;border:1px solid var(--line);
+  background:rgba(0,0,0,.2);color:var(--text);font-size:20px;cursor:pointer;display:grid;place-items:center}
+.icon-btn:active{transform:scale(.92)}
+.scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;flex:1;min-height:0}
+.hint{color:var(--muted);font-size:12.5px;text-align:center;margin:6px 2px}
+
+/* Top bar */
+.topbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex:0 0 auto}
+.topbar .title{flex:1;font-weight:800;font-size:18px}
+.round-btn{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:rgba(0,0,0,.25);
+  color:var(--text);font-size:19px;display:grid;place-items:center;cursor:pointer;flex:0 0 auto}
+.round-btn:active{transform:scale(.9)}
+
+/* Mode menu */
+.modes{display:flex;flex-direction:column;gap:11px;padding-bottom:6px}
+.mode{display:flex;align-items:center;gap:14px;text-align:left;background:linear-gradient(180deg,var(--karte2),var(--karte));
+  border:1px solid var(--line);border-radius:18px;padding:15px 16px;cursor:pointer;color:var(--text);
+  box-shadow:0 6px 18px rgba(0,0,0,.28);transition:transform .1s}
+.mode:active{transform:scale(.98)}
+.mode .mi{font-size:30px;flex:0 0 auto;width:44px;text-align:center}
+.mode .mt{font-weight:800;font-size:17px}
+.mode .md{color:var(--muted);font-size:12.5px;margin-top:2px;line-height:1.3}
+.mode.primary{border-color:rgba(232,167,44,.5);background:linear-gradient(180deg,#3a4a25,#2a3a1c)}
+.mode.primary .badge{margin-left:auto;background:var(--amber);color:#20180a;font-size:10.5px;font-weight:800;
+  padding:4px 8px;border-radius:20px;letter-spacing:.5px;flex:0 0 auto}
+
+/* Card game */
+.cardstage{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
+.cardwrap{flex:1;min-height:0;display:grid;place-items:center;position:relative;padding:6px 2px}
+.gcard{width:100%;height:100%;max-height:560px;border-radius:26px;position:relative;
+  background:linear-gradient(180deg,var(--karte2),var(--karte));border:1px solid var(--line);
+  box-shadow:0 18px 46px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.05);
+  display:flex;flex-direction:column;padding:22px;overflow:hidden;will-change:transform,opacity;cursor:grab}
+.gcard:active{cursor:grabbing}
+.gcard .accent{position:absolute;inset:0 0 auto 0;height:7px;background:var(--cat,#e8a72c)}
+.gcard .glow{position:absolute;top:-40%;left:-20%;width:140%;height:80%;border-radius:50%;
+  background:radial-gradient(closest-side,var(--cat,#e8a72c),transparent);opacity:.16;filter:blur(10px);pointer-events:none}
+.chip{align-self:flex-start;display:inline-flex;align-items:center;gap:7px;background:rgba(0,0,0,.28);
+  border:1px solid var(--cat,#e8a72c);color:var(--cat,#e8a72c);font-weight:800;font-size:12.5px;
+  padding:7px 12px;border-radius:20px;letter-spacing:.4px;margin-top:6px}
+.gcard .body{flex:1;display:flex;align-items:center;justify-content:center;text-align:center}
+.gcard .body p{font-family:Georgia,serif;font-size:clamp(22px,6.2vw,30px);line-height:1.32;margin:0;font-weight:600}
+.gcard .foot{color:var(--muted);font-size:12px;text-align:center;letter-spacing:.3px}
+.tapnext{position:absolute;bottom:12px;left:0;right:0;text-align:center;color:var(--muted);font-size:11.5px;opacity:.8}
+
+.bottombar{flex:0 0 auto;display:flex;gap:10px;margin-top:12px}
+.bottombar .btn{flex:1}
+
+/* Rules chip + sheet */
+.ruleschip{position:relative;display:inline-flex;align-items:center;gap:6px;background:rgba(176,125,63,.22);
+  border:1px solid var(--holz);color:var(--heu);font-weight:700;font-size:12.5px;padding:9px 12px;border-radius:20px;cursor:pointer}
+.ruleschip:active{transform:scale(.95)}
+.ruleschip .cnt{background:var(--amber);color:#20180a;border-radius:20px;padding:1px 7px;font-size:11px;font-weight:800}
+.sheet-bg{position:absolute;inset:0;background:rgba(0,0,0,.55);display:none;z-index:50;animation:fade .2s}
+.sheet-bg.open{display:block}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,var(--karte2),var(--karte));
+  border-top:1px solid var(--line);border-radius:22px 22px 0 0;padding:16px 18px calc(20px + var(--safe-b));
+  max-height:72%;display:flex;flex-direction:column;transform:translateY(100%);transition:transform .34s cubic-bezier(.2,.9,.25,1)}
+.sheet-bg.open .sheet{transform:none}
+.sheet h3{margin:2px 0 12px;font-size:19px}
+.rule-item{background:rgba(0,0,0,.22);border:1px solid var(--line);border-left:4px solid var(--holz);
+  border-radius:12px;padding:12px 13px;font-size:14.5px;line-height:1.35;margin-bottom:9px;position:relative}
+.rule-item .del{position:absolute;top:8px;right:9px;color:var(--muted);font-size:16px;cursor:pointer;padding:2px 6px}
+.empty{color:var(--muted);text-align:center;font-size:13.5px;padding:18px 6px}
+
+/* Kategorien */
+.katbig{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:18px}
+.katbig .kw{font-family:Georgia,serif;font-size:clamp(26px,8vw,40px);font-weight:700;line-height:1.2;
+  padding:0 6px;background:linear-gradient(180deg,#fbe6a4,var(--amber));-webkit-background-clip:text;background-clip:text;color:transparent}
+.ring{--p:0;width:150px;height:150px;border-radius:50%;display:grid;place-items:center;
+  background:conic-gradient(var(--amber) calc(var(--p)*1%), rgba(255,255,255,.08) 0);position:relative}
+.ring::before{content:"";position:absolute;inset:10px;border-radius:50%;background:var(--bg2)}
+.ring .num{position:relative;font-family:Georgia,serif;font-size:46px;font-weight:700}
+
+/* Bumm */
+.bummstage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:20px}
+.bummorb{width:190px;height:190px;border-radius:50%;display:grid;place-items:center;font-size:80px;
+  background:radial-gradient(closest-side,#3a4a25,#26331b);border:2px solid var(--line);
+  box-shadow:0 16px 40px rgba(0,0,0,.5);transition:transform .12s}
+.bummorb.tick{animation:tick .25s}
+@keyframes tick{50%{transform:scale(1.05)}}
+.bummorb.boom{background:radial-gradient(closest-side,#ff8a3d,#c33);animation:boom .5s;font-size:74px}
+@keyframes boom{0%{transform:scale(.7)}55%{transform:scale(1.15)}100%{transform:scale(1)}}
+.bumptxt{font-family:Georgia,serif;font-size:22px;font-weight:600;padding:0 12px;min-height:60px;display:flex;align-items:center}
+
+/* Settings */
+.set-row{display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--line)}
+.set-row .lbl{flex:1}
+.set-row .lbl b{font-size:15.5px}
+.set-row .lbl small{display:block;color:var(--muted);font-size:12px;margin-top:2px;line-height:1.3}
+.switch{width:52px;height:31px;border-radius:20px;background:rgba(0,0,0,.4);border:1px solid var(--line);position:relative;flex:0 0 auto;cursor:pointer;transition:background .2s}
+.switch.on{background:var(--amber)}
+.switch .knob{position:absolute;top:2px;left:2px;width:25px;height:25px;border-radius:50%;background:#fff;transition:left .2s cubic-bezier(.2,.9,.25,1)}
+.switch.on .knob{left:23px}
+.seg{display:flex;background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:12px;overflow:hidden;flex:0 0 auto}
+.seg button{border:none;background:transparent;color:var(--muted);font:inherit;font-weight:700;font-size:13px;padding:9px 12px;cursor:pointer}
+.seg button.on{background:var(--amber);color:#20180a}
+
+.toast{position:absolute;left:50%;bottom:calc(84px + var(--safe-b));transform:translateX(-50%) translateY(20px);
+  background:rgba(0,0,0,.82);color:var(--text);padding:11px 18px;border-radius:14px;font-size:14px;font-weight:600;
+  opacity:0;transition:.28s;pointer-events:none;z-index:60;border:1px solid var(--line);max-width:88%;text-align:center}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HOME -->
+  <section id="s-home" class="screen active">
+    <div class="hero">
+      <div class="emoji">🚜🍺🌾</div>
+      <h1>Dorfkind</h1>
+      <p class="tag">Das Trinkspiel für die ganze Scheune</p>
+    </div>
+    <div style="height:16px"></div>
+    <div class="card-soft" style="display:flex;flex-direction:column;flex:1;min-height:0">
+      <p class="section-label">Wer spielt mit? <span style="text-transform:none;letter-spacing:0">(min. 2)</span></p>
+      <div id="players" class="scroll"></div>
+      <button class="btn ghost sm" id="addPlayer" style="margin-top:8px">➕ Spieler dazu</button>
+    </div>
+    <div style="height:12px"></div>
+    <button class="btn" id="toMenu">Los geht's 🍺</button>
+    <div class="topbar" style="margin:12px 0 0;justify-content:center">
+      <button class="round-btn" id="homeSettings" aria-label="Einstellungen">⚙️</button>
+    </div>
+  </section>
+
+  <!-- MENU -->
+  <section id="s-menu" class="screen">
+    <div class="topbar">
+      <button class="round-btn" data-back="s-home">‹</button>
+      <div class="title">Modus wählen</div>
+      <button class="round-btn" id="menuSettings">⚙️</button>
+    </div>
+    <div class="scroll">
+      <div class="modes" id="modeList"></div>
+    </div>
+  </section>
+
+  <!-- CARD GAME (Hauptdeck / Ich hab noch nie / Wer würde eher) -->
+  <section id="s-cards" class="screen">
+    <div class="topbar">
+      <button class="round-btn" data-back="s-menu">‹</button>
+      <div class="title" id="cardsTitle">Hauptdeck</div>
+      <div class="ruleschip" data-open-rules>📜 <span class="cnt" id="rc1">0</span></div>
+    </div>
+    <div class="cardstage">
+      <div class="cardwrap">
+        <div class="gcard" id="gcard">
+          <div class="accent"></div><div class="glow"></div>
+          <div class="chip" id="cChip">🍺 Trinken</div>
+          <div class="body"><p id="cText">…</p></div>
+          <div class="tapnext">Tippen oder wischen für die nächste Karte</div>
+        </div>
+      </div>
+      <div class="bottombar">
+        <button class="btn ghost sm" id="cShuffle">🔀 Neu mischen</button>
+        <button class="btn sm" id="cNext" style="flex:1.4">Nächste ›</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- KATEGORIEN -->
+  <section id="s-kat" class="screen">
+    <div class="topbar">
+      <button class="round-btn" data-back="s-menu">‹</button>
+      <div class="title">Kategorien</div>
+      <div class="ruleschip" data-open-rules>📜 <span class="cnt" id="rc2">0</span></div>
+    </div>
+    <div class="katbig">
+      <div class="section-label" style="margin:0">Nennt reihum – wer stockt, trinkt</div>
+      <div class="kw" id="katWord">Bereit?</div>
+      <div class="ring" id="ring" style="--p:0"><div class="num" id="ringNum">30</div></div>
+    </div>
+    <div class="bottombar">
+      <button class="btn ghost sm" id="katTimer">▶︎ Timer</button>
+      <button class="btn sm" id="katNext" style="flex:1.4">Neue Kategorie ›</button>
+    </div>
+  </section>
+
+  <!-- TICK TICK BUMM -->
+  <section id="s-bumm" class="screen">
+    <div class="topbar">
+      <button class="round-btn" data-back="s-menu">‹</button>
+      <div class="title">Tick-Tick-Bumm</div>
+      <div class="ruleschip" data-open-rules>📜 <span class="cnt" id="rc3">0</span></div>
+    </div>
+    <div class="bummstage">
+      <div class="bummtask section-label" id="bummTask" style="margin:0;min-height:16px"></div>
+      <div class="bummorb" id="bummOrb">💣</div>
+      <div class="bumptxt" id="bummTxt">Handy rumgeben. Beim BUMM in der Hand = trinken!</div>
+    </div>
+    <div class="bottombar">
+      <button class="btn sm" id="bummBtn" style="flex:1">Bombe scharf machen 💥</button>
+    </div>
+  </section>
+
+  <!-- REGEL-KARTEN -->
+  <section id="s-regeln" class="screen">
+    <div class="topbar">
+      <button class="round-btn" data-back="s-menu">‹</button>
+      <div class="title">Regel-Karten</div>
+      <div class="ruleschip" data-open-rules>📜 <span class="cnt" id="rc4">0</span></div>
+    </div>
+    <div class="cardstage">
+      <div class="cardwrap">
+        <div class="gcard" id="rcard" style="--cat:#b07d3f">
+          <div class="accent"></div><div class="glow"></div>
+          <div class="chip">📜 Dauer-Regel</div>
+          <div class="body"><p id="rText">Zieh eine Regel, die den ganzen Abend gilt.</p></div>
+          <div class="tapnext">Aktive Regeln bleiben oben über 📜 sichtbar</div>
+        </div>
+      </div>
+      <div class="bottombar">
+        <button class="btn ghost sm" data-open-rules style="flex:1">Aktive Regeln</button>
+        <button class="btn sm" id="rDraw" style="flex:1.4">Regel ziehen ›</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="s-set" class="screen">
+    <div class="topbar">
+      <button class="round-btn" id="setBack">‹</button>
+      <div class="title">Einstellungen</div>
+    </div>
+    <div class="scroll">
+      <div class="set-row">
+        <div class="lbl"><b>Zahm-Modus</b><small>Filtert derbere & persönlichere Karten raus</small></div>
+        <div class="switch" id="swZahm"><div class="knob"></div></div>
+      </div>
+      <div class="set-row">
+        <div class="lbl"><b>Trink-Intensität</b><small>Skaliert die Schluck-Mengen</small></div>
+        <div class="seg" id="segInt">
+          <button data-int="mild">Mild</button>
+          <button data-int="normal">Normal</button>
+          <button data-int="heftig">Heftig</button>
+        </div>
+      </div>
+      <div class="set-row">
+        <div class="lbl"><b>Vibration</b><small>Haptisches Feedback beim Kartenwechsel</small></div>
+        <div class="switch" id="swVib"><div class="knob"></div></div>
+      </div>
+      <div class="set-row" style="border-bottom:none;flex-direction:column;align-items:stretch;gap:10px">
+        <div class="lbl"><b>Spieler verwalten</b></div>
+        <div id="playersSet"></div>
+        <button class="btn ghost sm" id="addPlayer2">➕ Spieler dazu</button>
+      </div>
+      <div style="height:8px"></div>
+      <button class="btn ghost sm" id="resetBtn" style="color:#e8927c;border-color:rgba(214,81,62,.4)">🗑️ Alles zurücksetzen</button>
+      <p class="hint" id="ver">Dorfkind · offline · v1</p>
+    </div>
+  </section>
+
+  <!-- RULES SHEET -->
+  <div class="sheet-bg" id="rulesSheet">
+    <div class="sheet">
+      <h3>📜 Aktive Regeln</h3>
+      <div class="scroll" id="ruleList" style="max-height:46vh"></div>
+      <div style="height:10px"></div>
+      <button class="btn ghost sm" id="clearRules">Alle Regeln aufheben</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+"use strict";
+/* ============================ CONTENT ============================ */
+// Hauptdeck – {sN}=N Schlücke (skaliert), Platzhalter: {spieler} {spieler2} {links} {rechts} {jüngster} {ältester} {alle}
+const MAIN = [
+ // 🍺 Trinken
+ {c:'trinken',t:`{spieler}, du bist bestimmt mit 14 schon aufm Trecker mitgefahren – {s2}.`},
+ {c:'trinken',t:`Alle ohne Traktor-Führerschein: {s1}.`},
+ {c:'trinken',t:`{spieler}, dein Corsa hat mehr PS im Soundsystem als unterm Blech – {s2}.`},
+ {c:'trinken',t:`Wer heute schon auf einem Parkplatz vorgeglüht hat: {s2}.`},
+ {c:'trinken',t:`{spieler} und {spieler2} kommen quasi aus demselben Kaff – beide {s1}.`},
+ {c:'trinken',t:`Alle die aufm Dorf wohnen, wo der Bus nur zweimal am Tag fährt: {s2}.`},
+ {c:'trinken',t:`{spieler}, für jedes Feuerwehrfest, auf dem du dieses Jahr warst: {s1}.`},
+ {c:'trinken',t:`Wer schon mal auf der Bushaltestelle abgehangen hat statt in der Stadt: {s1}.`},
+ {c:'trinken',t:`{jüngster}, du bist heute das Küken am Tisch – {s2}.`},
+ {c:'trinken',t:`{ältester}, du hast den Vokuhila noch live erlebt – {s2}.`},
+ {c:'trinken',t:`Alle mit Gummistiefeln oder Arbeitshandschuhen im Kofferraum: {s1}.`},
+ {c:'trinken',t:`{spieler}, letzte Kirmes hast du dich nicht ganz benommen – {s2}.`, derb:true},
+ {c:'trinken',t:`Wer den Namen vom Dorfbürgermeister nicht kennt: {s2}.`},
+ {c:'trinken',t:`Jeder, der schon mal Gülle gerochen und trotzdem weitergegessen hat – {s1}.`},
+ {c:'trinken',t:`Alle die insgeheim einen getunten Golf oder Bulli geil finden: {s1}.`},
+ {c:'trinken',t:`{spieler}, dein erstes Auto war aufgemotzt, bevor der TÜV es je gesehen hat – {s2}.`},
+ {c:'trinken',t:`Wer schon mal Bierkästen gestapelt hat, bis der ganze Turm umgekippt ist: {s2}.`},
+ {c:'trinken',t:`{spieler}, in deinem Elternhaus stand garantiert mal ein Jägerzaun – {s1}.`},
+ {c:'trinken',t:`Alle die heute schon vor 9 Uhr "Moin" gesagt haben: {s1}.`},
+ {c:'trinken',t:`{spieler}, Konfirmation oder Kommunion war dein erster kleiner Rausch, gib's zu – {s2}.`, derb:true},
+ {c:'trinken',t:`Wer keinen eigenen Dorf-Spitznamen hat: {s2}. Ihr Amateure.`},
+ {c:'trinken',t:`{spieler} und {links}: klassische Nachbardörfer-Rivalität – beide {s1}.`},
+ {c:'trinken',t:`Alle die sich als Kind schon mal in einem Maisfeld verlaufen haben: {s2}.`},
+ // 🎯 Aufgabe
+ {c:'aufgabe',t:`{spieler}, mach den besten Kuh-Sound am Tisch. Kein Applaus = {s2}.`},
+ {c:'aufgabe',t:`Sing die erste Zeile von einem Ballermann-Hit. Weigern = {s2}.`},
+ {c:'aufgabe',t:`{spieler}, imitiere den Sound von einem anspringenden Trecker. Zu lasch = {s1}.`},
+ {c:'aufgabe',t:`{spieler}, halt eine 15-Sekunden-Dankesrede fürs Feuerwehrfest. Stocken = {s2}.`},
+ {c:'aufgabe',t:`{spieler}, nenne 5 Biermarken in 10 Sekunden. Schaffst du's nicht = {s2}.`},
+ {c:'aufgabe',t:`{spieler}, mach die Bewegung vom Güllewagen-Ausbringen nach. Kein Mut = {s1}.`},
+ {c:'aufgabe',t:`{spieler}, sag den nächsten Satz im breitesten Dorf-Dialekt. Hochdeutsch rutscht raus = {s2}.`},
+ {c:'aufgabe',t:`{spieler}, balanciere deinen Becher 10 Sekunden auf dem Handrücken. Fällt er = {s1}.`},
+ {c:'aufgabe',t:`{spieler}, erzähl einen richtig doofen Bauernwitz. Keiner lacht = {s2}.`},
+ {c:'aufgabe',t:`{spieler}, mach 5 Hampelmänner wie beim Schützenfest-Frühsport. Weigern = {s2}.`},
+ {c:'aufgabe',t:`{spieler}, buchstabiere "Landjugend" rückwärts. Fehler = {s1}.`},
+ {c:'aufgabe',t:`{spieler}, tu 10 Sekunden so, als würdest du eine Kuh melken. Aufhören = {s1}.`},
+ {c:'aufgabe',t:`{spieler}, nenne 3 Nachbardörfer mit lustigem Namen. Keine 3 = {s2}.`},
+ {c:'aufgabe',t:`{spieler}, mach {rechts} ein ernstgemeintes Kompliment im breitesten Dorf-Dialekt. Zu lasch = {s2}.`},
+ {c:'aufgabe',t:`{spieler}, halt die Luft an, bis {spieler2} dreimal langsam "Erntedank" gesagt hat. Vorher atmen = {s1}.`},
+ {c:'aufgabe',t:`{spieler}, erfinde einen Werbeslogan für den Dorf-Supermarkt. Zu schlecht (Gruppe entscheidet) = {s2}.`},
+ {c:'aufgabe',t:`{spieler}, tanz 5 Sekunden Discofox wie auf der Dorfdisco. Zu steif = {s1}.`},
+ {c:'aufgabe',t:`{spieler}, sag dreimal schnell "Feuerwehrfestbierzelt". Verhaspeln = {s2}.`},
+ {c:'aufgabe',t:`{spieler}, gib {rechts} ein passendes Bauernhof-Tier als Spitznamen. Kein Mut = {s1}.`},
+ {c:'aufgabe',t:`{spieler}, trink bis zur nächsten Karte nur mit abgespreiztem kleinem Finger. Vergessen = {s2}.`},
+ {c:'aufgabe',t:`{spieler}, halt eine flammende 15-Sekunden-Rede, warum dein Dorf besser ist als die Stadt. Stocken = {s1}.`},
+ // 📜 Ansage (einmalig)
+ {c:'regel',t:`Ab jetzt heißt Bier "Hopfenkaltschale". Wer's die nächste Runde falsch sagt, {s1}.`},
+ {c:'regel',t:`Neuer Toast für diese Runde: statt "Prost" ruft ihr "Auf'n Acker!". Vergessen = {s1}.`},
+ {c:'regel',t:`Wer als Nächstes das Wort "Ich" sagt, {s1}. Achtung, Falle.`},
+ {c:'regel',t:`{spieler} ist für die nächsten 3 Karten der Dorfsheriff und darf einmal jemanden zum {s1} schicken.`},
+ {c:'regel',t:`Kurz-Regel: Wer als Nächstes lacht, {s1}. Los, keiner lachen!`},
+ {c:'regel',t:`Handys auf den Tisch. Wer als Nächstes ohne Grund drangeht, {s2}.`},
+ {c:'regel',t:`Für diese Runde darf niemand beim Vornamen genannt werden, nur "Dorfkind". Fehler = {s1}.`},
+ {c:'regel',t:`{spieler} bestimmt ein Wort, das ab jetzt für eine Runde verboten ist. Wer's sagt, {s1}.`},
+ {c:'regel',t:`Der Nächste, der aufs Klo geht, gibt vorher eine Lokrunde von {s1} an alle aus.`},
+ {c:'regel',t:`Ab jetzt kündigt jeder seinen Schluck mit lautem "Prooost vom Feld!" an. Vergessen = {s1}.`},
+ {c:'regel',t:`Neue Anrede fürs Bier vom Nachbarn: "Schätzelein". Wer normal drüber redet, {s1}.`},
+ {c:'regel',t:`Linkshänder-Runde: Getränk bis zur nächsten Ansage nur mit links. Rechts erwischt = {s1}.`},
+ {c:'regel',t:`Wer als Nächstes flucht, {s1}. Ihr seid jetzt im Kirchenchor.`},
+ {c:'regel',t:`{alle} zeigen einmal kurz nach oben und rufen "Danke, lieber Bauer!". Wer nicht mitmacht, {s1}.`},
+ // 👥 Gruppe
+ {c:'gruppe',t:`Letzter, der die Hand auf den Tisch legt, {s2}.`},
+ {c:'gruppe',t:`Reihum Dorfnamen aufzählen. Wer stockt oder wiederholt, {s2}.`},
+ {c:'gruppe',t:`Zeigt gleichzeitig auf "Wer riecht am ehesten nach Stall?". Meiste Finger = {s2}.`},
+ {c:'gruppe',t:`Letzter, der laut "Landjugend!" ruft, {s1}.`},
+ {c:'gruppe',t:`Reihum ein Wort – baut gemeinsam einen Satz über das letzte Dorffest. Wer den Satz zerstört, {s2}.`},
+ {c:'gruppe',t:`Alle, die schon mal beim Erntedank-Essen fast eingeschlafen sind, {s1}.`},
+ {c:'gruppe',t:`Reihum die peinlichste Frisur der eigenen Jugend beichten. Wer keine zugibt, {s2} – jeder hatte eine.`},
+ {c:'gruppe',t:`Reihum jeder einen Satz im breitesten Dialekt. Wer in Hochdeutsch rutscht, {s2}.`},
+ {c:'gruppe',t:`Wer von euch hat heute Nacht den weitesten Heimweg? Der eine {s1}, alle prosten ihm zu.`},
+ {c:'gruppe',t:`Reihum ein Fest im Dorfjahr (Schützen-, Feuerwehr-, Ernte-…). Wer keins mehr weiß, {s2}.`},
+ {c:'gruppe',t:`Alle ohne Gummistiefel zu Hause: {s2}. Stadtkinder-Steuer.`, derb:true},
+ {c:'gruppe',t:`Reihum das peinlichste Auto der Jugend nennen. Wer keins zugibt, {s1} – jeder hatte eins.`},
+ {c:'gruppe',t:`Der mit den saubersten Schuhen am Tisch, {s2}. Zu fein fürs Dorf.`},
+ {c:'gruppe',t:`Countdown 3-2-1: alle deuten auf den größten Trecker-Fan. Trifft's einen mit Mehrheit, {s2}.`},
+ {c:'gruppe',t:`Reihum Tiergeräusche, jeder ein anderes. Wiederholung oder Stille = {s1}.`},
+ {c:'gruppe',t:`Alle, die schon mal auf einem Anhänger mitgefahren sind, wo man's nicht durfte: {s1}.`},
+ {c:'gruppe',t:`Stumm-Runde: Ab jetzt kein Wort. Wer als Erster redet oder lacht, {s2}.`},
+ {c:'gruppe',t:`Alle, die zu Hause mindestens einen Gartenzwerg oder Jägerzaun haben: {s1}.`},
+ // ⚔️ Duell
+ {c:'duell',t:`{spieler} vs {spieler2}: Wer zuerst blinzelt, {s2}.`},
+ {c:'duell',t:`Schere-Stein-Papier, {spieler} gegen {rechts}. Verlierer {s3}.`},
+ {c:'duell',t:`{spieler} und {spieler2}: Armdrücken. Verlierer {s3}.`},
+ {c:'duell',t:`Anstarr-Duell {spieler} vs {links}. Wer zuerst lacht, {s2}.`},
+ {c:'duell',t:`{spieler} vs {spieler2}: Wer nennt mehr Traktormarken in 15 Sekunden? Verlierer {s2}.`},
+ {c:'duell',t:`Daumenkrieg {spieler} gegen {rechts}. Verlierer {s2}.`},
+ {c:'duell',t:`{spieler} und {spieler2}: Wer hält den Arm länger ausgestreckt? Erster, der einknickt, {s2}.`},
+ {c:'duell',t:`Wettsingen: {spieler} vs {spieler2}, je eine Zeile Schlager. Gruppe kürt den Verlierer, der {s2}.`},
+ {c:'duell',t:`{spieler} vs {links}: Wer kann länger "Muuuuh" halten? Verlierer {s2}.`},
+ {c:'duell',t:`Schnick-Schnack-Schnuck um die Ehre: {spieler} gegen {ältester}. Verlierer {s3}.`},
+ {c:'duell',t:`{spieler} und {spieler2}: Wer verzieht bei einem doofen Bauernwitz zuerst das Gesicht, {s2}.`},
+ {c:'duell',t:`Stein-Schere-Papier, best of 3: {spieler} vs {rechts}. Gesamt-Verlierer {s3}.`},
+ {c:'duell',t:`{spieler} vs {spieler2}: dreimal schnell "Feuerwehrhauptmann". Verhaspler {s2}.`},
+ {c:'duell',t:`Blitzrunde: {spieler} vs {links}, wer zuerst ein Kaff mit "B" nennt, gewinnt. Verlierer {s1}.`},
+ // 🤔 Wahrheit
+ {c:'wahrheit',t:`{spieler}: Was war dein peinlichster Moment auf einer Dorfdisco? Nicht erzählen = {s3}.`},
+ {c:'wahrheit',t:`{spieler}, wie alt warst du beim allerersten Bier? Ehrliche Antwort oder {s3}.`},
+ {c:'wahrheit',t:`{spieler}: Musste dich schon mal jemand betrunken heimfahren? Lügen = {s2}.`},
+ {c:'wahrheit',t:`{spieler}, was Peinliches steht bei Mama garantiert noch in deinem alten Kinderzimmer? Nicht sagen = {s2}.`},
+ {c:'wahrheit',t:`{spieler}: Hast du schon mal heimlich am Feldrand gepinkelt? Ehrlich oder {s2}.`},
+ {c:'wahrheit',t:`{spieler}, welchen Song hörst du heimlich rauf und runter, obwohl er peinlich ist? Schweigen = {s3}.`},
+ {c:'wahrheit',t:`{spieler}: Wer am Tisch würde am ehesten für immer aufs Dorf zurückziehen? Sag's oder {s2}.`},
+ {c:'wahrheit',t:`{spieler}, beschreib dein schlimmstes Modesünden-Foto. Nicht wollen = {s2}.`},
+ {c:'wahrheit',t:`{spieler}: Was war deine dümmste Mutprobe als Kind? Keine erzählen = {s2}.`},
+ {c:'wahrheit',t:`{spieler}, wie hieß dein erster Schwarm im Dorf? Vorname reicht – oder {s3}.`},
+ {c:'wahrheit',t:`{spieler}: Was hast du zuletzt gekauft und dich dabei ein bisschen geschämt? Sag's oder {s2}.`},
+ {c:'wahrheit',t:`{spieler}, hast du als Kind mal was aus Nachbars Garten "geerntet"? Ehrlich oder {s2}.`, derb:true},
+ {c:'wahrheit',t:`{spieler}: Bei welchem Fest hast du dich zuletzt daneben benommen? Erzähl oder {s2}.`, derb:true},
+ {c:'wahrheit',t:`{spieler}, wenn du ein Dorf-Klischee wärst – welches? Keine Antwort = {s1}.`},
+ {c:'wahrheit',t:`{spieler}: Worüber hast du dich zuletzt aufgeregt wie ein Rentner am Gartenzaun? Erzähl oder {s1}.`},
+ {c:'wahrheit',t:`{spieler}, was ist deine peinlichste Kirmes-Geschichte? Verschweigen = {s3}.`, derb:true},
+ // 🗳️ Abstimmung
+ {c:'abstimmung',t:`Zeigt alle auf den, der am ehesten mal in die Gülle gefallen ist. Meiste Finger {s2}.`, derb:true},
+ {c:'abstimmung',t:`Wer wird am ehesten mal "der eine Bauer" im Dorf? Meiste Stimmen {s2}.`},
+ {c:'abstimmung',t:`Wer könnte am besten Trecker fahren, auch ohne Führerschein? Meiste Finger {s2}.`},
+ {c:'abstimmung',t:`Wer geht am ehesten mit Gummistiefeln in den Club? Meiste Finger {s1}.`},
+ {c:'abstimmung',t:`Wer bestellt im Club am ehesten ein Radler statt einem Bier? Meiste Finger {s2}.`},
+ {c:'abstimmung',t:`Wer würde bei "Bauer sucht Frau" mitmachen? Meiste Finger {s2}.`},
+ {c:'abstimmung',t:`Wer singt beim Schützenfest am lautesten falsch? Meiste Finger {s1}.`},
+ {c:'abstimmung',t:`Wer hatte garantiert den schlimmsten Ausgeh-Look? Meiste Finger {s2}.`},
+ {c:'abstimmung',t:`Wer würde am ehesten den Bürgermeister volltexten? Meiste Finger {s2}.`},
+ {c:'abstimmung',t:`Wer ist heimlich das größte Stadtkind, obwohl vom Dorf? Meiste Finger {s2}.`},
+ {c:'abstimmung',t:`Wer kippt heute Abend als Erster um? Der Getippte {s1} – schon mal Anzahlung.`},
+ {c:'abstimmung',t:`Wer würde einen Bierkasten am ehesten allein leeren? Meiste Finger {s2}.`},
+ {c:'abstimmung',t:`Wer flirtet auf der Dorfdisco am plumpsten? Meiste Finger {s2}.`, derb:true},
+ {c:'abstimmung',t:`Wer hat den besten "Traktor-Führerschein-mit-15"-Vibe? Die Mehrheit darf jemand anderen {s1} schicken.`},
+ // 🔥 Wildcard / Event
+ {c:'wildcard',t:`🚜 GÜLLEWAGEN-RUNDE: Jeder gibt einen {s1} aus – die Runde stinkt für alle.`},
+ {c:'wildcard',t:`📦 KASTENLAUF: Die nächsten zwei Karten zählen doppelt. Festhalten!`},
+ {c:'wildcard',t:`🔥 FEUERZANGENBOWLE: Alle stoßen an und {s2} gemeinsam. Auf die Gemütlichkeit!`},
+ {c:'wildcard',t:`🌾 ERNTEDANK-SEGEN: {spieler} darf frei {s2} an einen oder mehrere verteilen.`},
+ {c:'wildcard',t:`🕺 DORFDISCO – LICHT AN: Letzter, der die Arme hochreißt, {s3}.`},
+ {c:'wildcard',t:`🎯 SCHÜTZENFEST-SALUT: Alle gleichzeitig {s2}. Auf den König!`},
+ {c:'wildcard',t:`🍺 BIERKASTEN-STAPELN: Reihum je {s1}. Wer als Erster patzt, {s2} extra.`},
+ {c:'wildcard',t:`🚜 TRAKTOR-KONVOI: Reihum trinkt jeder einen mehr (1, 2, 3 …), bis jemand aussteigt. Der {s2} zusätzlich.`},
+ {c:'wildcard',t:`🕳️ FELDWEG-SCHLAGLOCH: {spieler} und {spieler2} kippen unerwartet je {s2}.`},
+ {c:'wildcard',t:`🌽 MAISFELD-VERIRRT: Vornamen-Anfang vor "M": {s1}. Ab "M": {s2}.`}
+];
+
+const NOCHNIE = [
+ `…auf einem Trecker mitgefahren.`,
+ `…Bier auf einem Feldweg getrunken.`,
+ `…auf einem Feuerwehrfest übernachtet (oder es ernsthaft versucht).`,
+ `…den letzten Bus verpasst und bin durchs halbe Dorf gelaufen.`,
+ `…heimlich am Rand von einem Maisfeld gepinkelt.`,
+ `…auf einem Anhänger mitgefahren, obwohl man da nicht sitzen sollte.`,
+ `…Gülle gerochen und trotzdem seelenruhig weitergegessen.`,
+ `…auf einer Dorfdisco jemanden geküsst und es am nächsten Tag bereut.`,
+ `…Bierkästen gestapelt, bis der ganze Turm umgekippt ist.`,
+ `…einen Vokuhila gehabt oder ihn ernsthaft in Erwägung gezogen.`,
+ `…mit unter 16 auf einem Feldweg am Steuer gesessen.`,
+ `…auf einem Supermarkt-Parkplatz vorgeglüht.`,
+ `…bei einer Konfirmation oder Kommunion zu tief ins Glas geschaut.`,
+ `…eine echte Kuh aus nächster Nähe gestreichelt.`,
+ `…bei der Blaskapelle auf dem Dorffest lauthals mitgegrölt.`,
+ `…mich auf einer Kirmes übergeben.`,
+ `…an einer Bushaltestelle abgehangen, obwohl gar kein Bus kam.`,
+ `…einen getunten Golf oder Corsa gehört und ihn heimlich cool gefunden.`,
+ `…beim Schützenfest im Umzug mitmarschiert.`,
+ `…auf einem Traktor-Treffen gewesen.`,
+ `…beim Dorffest so lange getanzt, bis die Kapelle einpacken musste.`,
+ `…im eigenen Dorf jemanden getroffen, den ich über 3 Ecken NICHT kannte.`,
+ `…auf einem Jägerzaun balanciert.`,
+ `…mich im eigenen Dorf verlaufen (ja, zugegeben schwer).`,
+ `…Feuerzangenbowle getrunken, ohne den Film je gesehen zu haben.`,
+ `…heimlich das Bier oder den Sekt der Eltern probiert.`,
+ `…auf einem Feldweg ein Fahrradrennen gemacht.`,
+ `…dem Dorfbürgermeister persönlich die Hand geschüttelt.`,
+ `…aus purer Langeweile Kühe auf der Weide gezählt.`,
+ `…auf einem Heuballen für ein Foto posiert.`,
+ `…mich beim Dorffest mit Leuten aus dem Nachbardorf angelegt.`,
+ `…eine ganze Nacht auf dem Bolzplatz verbracht.`,
+ `…ein Schlagloch so voll erwischt, dass ich laut geflucht habe.`,
+ `…beim Feuerwehrfest die letzte Bratwurst vom Grill geschnappt.`,
+ `…morgens um 5 noch beim Fest gestanden und die Vögel zwitschern gehört.`,
+ `…den Traktor-Führerschein mit 15/16 gemacht oder machen wollen.`,
+ `…auf einem Dorffest jemanden kennengelernt, mit dem ich heute noch befreundet bin.`,
+ `…bei einer Mutprobe etwas ziemlich Dummes gemacht.`,
+ `…Kuhfladen ausgewichen wie einem Minenfeld.`,
+ `…den Sternenhimmel bestaunt, weil überhaupt kein Stadtlicht störte.`,
+ `…heimlich bei den Nachbarn Äpfel oder Kirschen "geliehen".`,
+ `…auf einer Ladefläche stehend "König der Welt" gespielt.`,
+ `…ein Fest nur wegen der Aussicht auf Freibier besucht.`,
+ `…einen ganzen Sommer auf demselben Feldweg verbracht.`
+];
+
+const WERWUERDE = [
+ `…den Bürgermeister zum Duell auf dem Bolzplatz herausfordern?`,
+ `…aus Versehen in die Gülle fallen?`,
+ `…bei "Bauer sucht Frau" mitmachen?`,
+ `…einen ganzen Bierkasten allein leeren?`,
+ `…mit dem Trecker zur Arbeit fahren?`,
+ `…auf der Dorfdisco spontan die Bühne stürmen?`,
+ `…sich für eine Wette einen Vokuhila wachsen lassen?`,
+ `…beim Feuerwehrfest im Bierzelt einschlafen?`,
+ `…eine Kuh als Haustier halten wollen?`,
+ `…den weitesten betrunkenen Heimweg komplett zu Fuß antreten?`,
+ `…auf jedem Dorffest im Umkreis von 20 km auftauchen?`,
+ `…den lautesten getunten Auspuff der Gegend fahren?`,
+ `…beim Karaoke ohne zu zögern einen Schlager grölen?`,
+ `…nach drei Bier die eigene Haustür nicht mehr auf Anhieb finden?`,
+ `…den Erntedank-Korb am schnellsten leer essen?`,
+ `…sich tatsächlich im eigenen Dorf verfahren?`,
+ `…ungefragt eine Rede beim Feuerwehrfest halten?`,
+ `…mit Gummistiefeln in einen schicken Club gehen?`,
+ `…auf der Kirmes an jeder Bude ein Los kaufen?`,
+ `…freiwillig auf einem Heuballen übernachten?`,
+ `…den neuesten Dorf-Klatsch am schnellsten weitertragen?`,
+ `…ein Reim-Battle über Kaff-Namen gewinnen?`,
+ `…auf einem Feldweg trampen?`,
+ `…zum Frühschoppen schon um 8 Uhr aufkreuzen?`,
+ `…die meisten Biermarken blind erschmecken?`,
+ `…aus Langeweile Trecker-Kennzeichen sammeln?`,
+ `…beim nächsten Dorffest zur Königin oder zum König gewählt werden?`,
+ `…beim Schützenfest tatsächlich ins Schwarze treffen?`,
+ `…nachts allein durch ein Maisfeld laufen?`,
+ `…als Erster von allen heute Abend "einen sitzen haben"?`,
+ `…den Nachbarn wegen zu lautem Rasenmähen am Sonntag zurechtweisen?`,
+ `…für ein kaltes Bier quer durchs Dorf radeln?`
+];
+
+const KATEGORIEN = [
+ `Biermarken`, `Traktor- & Landmaschinen-Marken`, `Dörfer / Kaff-Namen in der Umgebung`,
+ `Dinge, die man auf einem Feldweg findet`, `Ausreden fürs Zuspätkommen`, `Bauernhof-Tiere`,
+ `Deutsche Schlager & Ballermann-Hits`, `Feste im Dorfjahr (Schützen-, Erntedank …)`,
+ `Dinge, die im Kofferraum eines Dorfkinds liegen`, `Gemüse & Feldfrüchte`,
+ `Automarken, die auf dem Dorf getunt werden`, `Werkzeuge in Papas Schuppen`,
+ `Ausreden, warum man nicht mit anpacken kann`, `Dinge, die man bei Netto/Aldi kauft`,
+ `Wörter im Dorf-Dialekt`, `Grillgut fürs Feuerwehrfest`, `Gründe, warum der Bus zu spät ist`,
+ `Dinge, die auf einem Traktor-Treffen stehen`, `Spitznamen, die man im Dorf bekommen kann`,
+ `Deutsche Automarken`, `Dinge, die man auf einer Kirmes gewinnen kann`,
+ `Sorten von Bowle & Mischgetränken`, `Was man auf einem Anhänger transportiert`,
+ `Ausreden nach zu viel Bier`, `Vornamen, die "typisch Dorf" klingen`,
+ `Was man nachts an der Bushaltestelle so macht`, `Pflanzen & Blumen am Jägerzaun`,
+ `Typische Gerüche auf dem Land`
+];
+
+// Dauer-Regeln (ganzer Abend)
+const REGELN = [
+ `Daumen-König: Legt jemand heimlich den Daumen auf den Tisch, müssen alle folgen. Der Letzte trinkt – den ganzen Abend.`,
+ `Prost-Pflicht: Vor JEDEM Schluck ruft man "Auf'n Acker!". Vergessen = 1 Schluck nachtrinken.`,
+ `Fluch-Verbot: Wer flucht, trinkt. Gilt bis zum Ende des Abends.`,
+ `Hopfenkaltschale: Das Wort "Bier" ist verboten – es heißt nur noch "Hopfenkaltschale". Fehler = 1 Schluck.`,
+ `Linke-Hand-Gesetz: Getränk nur noch mit der linken Hand halten. Mit rechts erwischt = 1 Schluck.`,
+ `Plumpsklo-Zoll: Wer aufs Klo geht, sagt vorher laut "Ich muss mal zum Plumpsklo". Vergessen = 2 Schlücke.`,
+ `Kein-Ich-Regel: Wer das Wort "Ich" sagt, trinkt. Ja, den ganzen Abend.`,
+ `Dorfsheriff: {spieler} ist der Sheriff und darf einmal pro Runde jemanden zu 1 Schluck verdonnern. Widerspruch = 2 Schlücke.`,
+ `Handy-Sperre: Wer ohne guten Grund ans Handy geht, trinkt. Ausnahme: Musik auflegen.`,
+ `Zahlen-Tabu: Die Zahl "7" ist verboten – man sagt stattdessen "Trecker". Fehler = 1 Schluck.`,
+ `Zuprost-Zwang: Wer trinkt, ohne vorher jemandem zuzuprosten, trinkt gleich nochmal.`,
+ `Feierabend-Regel: Aufstehen nur mit lautem "Feierabend!". Ohne Ansage = 1 Schluck.`,
+ `Bauernwitz-Verbot: Wer bei einem doofen Bauernwitz lacht, trinkt. (Ja, das ist fies.)`,
+ `Sie-Gesellschaft: Alle siezen sich ab jetzt vornehm. Wer duzt, trinkt.`,
+ `Moin-Gesetz: Jede Person startet ihren nächsten Satz mit "Moin". Vergessen = 1 Schluck.`,
+ `Schätzelein-Regel: Das Bier des Nachbarn heißt ab jetzt "Schätzelein". Wer normal drüber redet, 1 Schluck.`
+];
+
+const BUMM_TASKS = [
+ `Reihum: Biermarken nennen!`, `Reihum: Dörfer & Kaff-Namen!`, `Reihum: Bauernhof-Tiere!`,
+ `Reihum: Traktor- & Automarken!`, `Reihum: Dinge auf dem Feldweg!`, `Reihum: Feste im Dorfjahr!`,
+ `Reihum: Deutsche Schlager!`, `Reihum: Gemüse & Feldfrüchte!`, `Reihum: Ausreden fürs Zuspätkommen!`,
+ `Reihum: Werkzeuge aus dem Schuppen!`, `Reihum: Wörter im Dorf-Dialekt!`, `Einfach weitergeben – kein Thema!`
+];
+
+/* ============================ STATE ============================ */
+const CATS = {
+ trinken:{icon:'🍺',label:'Trinken',color:'#e8a72c'},
+ aufgabe:{icon:'🎯',label:'Aufgabe',color:'#7fc24f'},
+ regel:{icon:'📜',label:'Ansage',color:'#c79a5b'},
+ gruppe:{icon:'👥',label:'Gruppe',color:'#3fbfa0'},
+ duell:{icon:'⚔️',label:'Duell',color:'#e8674f'},
+ wahrheit:{icon:'🤔',label:'Wahrheit',color:'#b184d8'},
+ abstimmung:{icon:'🗳️',label:'Abstimmung',color:'#f08a3c'},
+ wildcard:{icon:'🔥',label:'Wildcard',color:'#ff7a45'}
+};
+const WEIGHT = {trinken:4,aufgabe:4,gruppe:3,duell:3,wahrheit:3,abstimmung:2,regel:2,wildcard:1};
+const INTENSITY = {mild:1, normal:1.5, heftig:2};
+const KEY='dorfkind_v1';
+
+let state = load();
+function load(){
+  try{ const s=JSON.parse(localStorage.getItem(KEY)); if(s&&s.players) return s; }catch(e){}
+  return {players:['','' ], settings:{zahm:false,intensity:'normal',vibration:true}, activeRules:[]};
+}
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
+
+function vibrate(ms){ if(state.settings.vibration && navigator.vibrate){ try{navigator.vibrate(ms);}catch(e){} } }
+
+/* ---- text helpers ---- */
+function schluck(n){
+  const f=INTENSITY[state.settings.intensity]||1.5;
+  let v=Math.max(1, Math.round(n*f));
+  return v+' '+(v===1?'Schluck':'Schlücke');
+}
+function fill(txt, players){
+  let out = txt.replace(/\{s(\d+)\}/g,(m,n)=>schluck(parseInt(n,10)));
+  out = out.replace(/\{alle\}/g,'Alle');
+  // pool of distinct names, refill when empty
+  let pool=[]; const cache={};
+  const refill=()=>{ pool=players.slice(); for(let i=pool.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[pool[i],pool[j]]=[pool[j],pool[i]];} };
+  const take=()=>{ if(!pool.length) refill(); return pool.pop(); };
+  out = out.replace(/\{(spieler2|spieler|links|rechts|jüngster|ältester)\}/g,(m,key)=>{
+    if(!cache[key]) cache[key]=take() || 'wer auch immer';
+    return cache[key];
+  });
+  return out;
+}
+function activePlayers(){ return state.players.map(p=>p.trim()).filter(Boolean); }
+
+/* ---- shuffle bag with no quick repeat ---- */
+function makeBag(len){ const a=[...Array(len).keys()]; for(let i=len-1;i>0;i--){const j=(Math.random()*(i+1))|0;[a[i],a[j]]=[a[j],a[i]];} return a; }
+
+/* ============================ ROUTER ============================ */
+const $=s=>document.querySelector(s); const $$=s=>[...document.querySelectorAll(s)];
+function go(id){ $$('.screen').forEach(s=>s.classList.toggle('active', s.id===id)); }
+$$('[data-back]').forEach(b=>b.addEventListener('click',()=>{vibrate(8); go(b.dataset.back);}));
+
+/* ============================ PLAYERS UI ============================ */
+function renderPlayers(container, minRows){
+  container.innerHTML='';
+  const list = state.players.length? state.players : [''];
+  list.forEach((name,i)=>{
+    const row=document.createElement('div'); row.className='player-row';
+    const inp=document.createElement('input');
+    inp.type='text'; inp.value=name; inp.placeholder='Name '+(i+1); inp.maxLength=16;
+    inp.addEventListener('input',()=>{ state.players[i]=inp.value; save(); });
+    const del=document.createElement('button'); del.className='icon-btn'; del.textContent='✕';
+    del.addEventListener('click',()=>{ state.players.splice(i,1); save(); renderAllPlayers(); vibrate(8); });
+    row.append(inp,del); container.append(row);
+  });
+}
+function renderAllPlayers(){ renderPlayers($('#players'), 2); renderPlayers($('#playersSet'), 1); }
+function addPlayer(){ if(state.players.length>=12){ toast('Maximal 12 Spieler'); return; } state.players.push(''); save(); renderAllPlayers(); vibrate(10);
+  const inputs=$('#players').querySelectorAll('input'); if(inputs.length) inputs[inputs.length-1].focus(); }
+$('#addPlayer').addEventListener('click',addPlayer);
+$('#addPlayer2').addEventListener('click',()=>{ if(state.players.length>=12){toast('Maximal 12 Spieler');return;} state.players.push(''); save(); renderAllPlayers(); });
+
+$('#toMenu').addEventListener('click',()=>{
+  if(activePlayers().length<2){ toast('Mindestens 2 Spieler mit Namen eintragen 🍺'); vibrate([10,40,10]); return; }
+  vibrate(12); buildMenu(); go('s-menu');
+});
+
+/* ============================ MENU ============================ */
+const MODES=[
+ {id:'main', icon:'🍺', t:'Hauptdeck', d:'Der endlose Kartenstapel. Alle Kategorien gemischt.', primary:true, badge:'KERN'},
+ {id:'nochnie', icon:'🙈', t:'Ich hab noch nie …', d:'Dorf-Edition. Wer’s doch getan hat, trinkt.'},
+ {id:'werwuerde', icon:'👉', t:'Wer würde eher …', d:'Zeigt auf jemanden – die Mehrheit trinkt.'},
+ {id:'kat', icon:'⏱️', t:'Kategorien', d:'Reihum aufzählen, wer stockt, trinkt.'},
+ {id:'bumm', icon:'💣', t:'Tick-Tick-Bumm', d:'Handy rumgeben. Beim Bumm in der Hand = trinken.'},
+ {id:'regeln', icon:'📜', t:'Regel-Karten', d:'Dauer-Regeln für den ganzen Abend.'}
+];
+function buildMenu(){
+  const list=$('#modeList'); list.innerHTML='';
+  MODES.forEach(m=>{
+    const el=document.createElement('button'); el.className='mode'+(m.primary?' primary':'');
+    el.innerHTML=`<div class="mi">${m.icon}</div><div style="flex:1"><div class="mt">${m.t}</div><div class="md">${m.d}</div></div>${m.badge?`<div class="badge">${m.badge}</div>`:''}`;
+    el.addEventListener('click',()=>{ vibrate(12); openMode(m.id); });
+    list.append(el);
+  });
+}
+function openMode(id){
+  refreshRuleChips();
+  if(id==='main'){ startCards('main'); go('s-cards'); }
+  else if(id==='nochnie'){ startCards('nochnie'); go('s-cards'); }
+  else if(id==='werwuerde'){ startCards('werwuerde'); go('s-cards'); }
+  else if(id==='kat'){ startKat(); go('s-kat'); }
+  else if(id==='bumm'){ resetBumm(); go('s-bumm'); }
+  else if(id==='regeln'){ resetRegelCard(); go('s-regeln'); }
+}
+
+/* ============================ CARD MODES ============================ */
+let cardMode='main', recent=[], bag=[], bagPos=0;
+const gcard=$('#gcard'), cText=$('#cText'), cChip=$('#cChip'), cardsTitle=$('#cardsTitle');
+
+function filteredMain(){ return MAIN.filter(c=>!(state.settings.zahm && c.derb)); }
+function filteredList(arr){ return arr.filter(c=>true); } // simple lists have no derb flags
+
+function startCards(mode){
+  cardMode=mode; recent=[];
+  if(mode==='main'){ cardsTitle.textContent='🍺 Hauptdeck'; }
+  else if(mode==='nochnie'){ cardsTitle.textContent='🙈 Ich hab noch nie …'; bag=makeBag(NOCHNIE.length); bagPos=0; }
+  else { cardsTitle.textContent='👉 Wer würde eher …'; bag=makeBag(WERWUERDE.length); bagPos=0; }
+  drawCard(1,true);
+}
+
+function pickMain(){
+  const pool=filteredMain();
+  // weighted random avoiding recent
+  let tries=0, pick=null;
+  const wpool=[]; pool.forEach((c,i)=>{ const w=WEIGHT[c.c]||1; for(let k=0;k<w;k++) wpool.push(i); });
+  do{ pick=wpool[(Math.random()*wpool.length)|0]; tries++; }
+  while(recent.includes(pick) && tries<40);
+  recent.push(pick); if(recent.length>Math.min(28,pool.length-1)) recent.shift();
+  return pool[pick];
+}
+function nextFromBag(arr){
+  if(bagPos>=bag.length){ const last=bag[bag.length-1]; bag=makeBag(arr.length); bagPos=0; if(bag[0]===last && bag.length>1){[bag[0],bag[1]]=[bag[1],bag[0]];} }
+  return arr[bag[bagPos++]];
+}
+
+function currentCardData(){
+  const players=activePlayers();
+  if(cardMode==='main'){ const c=pickMain(); return {chip:`${CATS[c.c].icon} ${CATS[c.c].label}`, color:CATS[c.c].color, text:fill(c.t,players)}; }
+  if(cardMode==='nochnie'){ return {chip:'🙈 Ich hab noch nie', color:'#b184d8', text:'Ich hab noch nie '+nextFromBag(NOCHNIE)}; }
+  return {chip:'👉 Wer würde eher', color:'#f08a3c', text:'Wer würde eher '+nextFromBag(WERWUERDE)};
+}
+
+let animating=false;
+function paintCard(el, chipEl, textEl, data){
+  el.style.setProperty('--cat', data.color);
+  chipEl.textContent=data.chip; textEl.textContent=data.text;
+}
+function drawCard(dir, first){
+  if(animating) return; animating=true;
+  const data=currentCardData();
+  if(first){ paintCard(gcard,cChip,cText,data); gcard.style.transition='none'; gcard.style.transform='none'; gcard.style.opacity='1'; animating=false; return; }
+  vibrate(12);
+  gcard.style.transition='transform .30s cubic-bezier(.4,0,.2,1),opacity .30s';
+  gcard.style.transform=`translateX(${dir*520}px) rotate(${dir*16}deg)`; gcard.style.opacity='0';
+  setTimeout(()=>{
+    paintCard(gcard,cChip,cText,data);
+    gcard.style.transition='none';
+    gcard.style.transform=`translateX(${dir*46}px) scale(.94)`; gcard.style.opacity='0';
+    requestAnimationFrame(()=>{ requestAnimationFrame(()=>{
+      gcard.style.transition='transform .40s cubic-bezier(.2,.9,.25,1),opacity .3s';
+      gcard.style.transform='translateX(0) scale(1)'; gcard.style.opacity='1';
+      setTimeout(()=>animating=false,180);
+    });});
+  },300);
+}
+$('#cNext').addEventListener('click',()=>drawCard(1));
+$('#cShuffle').addEventListener('click',()=>{ recent=[]; if(cardMode!=='main'){ bag=makeBag(cardMode==='nochnie'?NOCHNIE.length:WERWUERDE.length); bagPos=0; } toast('Neu gemischt 🔀'); drawCard(1); });
+
+/* swipe / tap on card */
+function attachSwipe(el, onNext){
+  let sx=0,sy=0,dx=0,drag=false,moved=false;
+  el.addEventListener('pointerdown',e=>{ if(animating) return; drag=true;moved=false;sx=e.clientX;sy=e.clientY;dx=0; el.style.transition='none'; el.setPointerCapture&&el.setPointerCapture(e.pointerId); });
+  el.addEventListener('pointermove',e=>{ if(!drag) return; dx=e.clientX-sx; const dy=e.clientY-sy; if(Math.abs(dx)>6||Math.abs(dy)>6) moved=true; el.style.transform=`translateX(${dx}px) rotate(${dx/22}deg)`; el.style.opacity=String(Math.max(.4,1-Math.abs(dx)/460)); });
+  const end=e=>{ if(!drag) return; drag=false;
+    if(Math.abs(dx)>105){ const dir=dx>0?1:-1; el.style.transition='transform .22s ease,opacity .22s'; el.style.transform=`translateX(${dir*560}px) rotate(${dir*16}deg)`; el.style.opacity='0'; setTimeout(()=>onNext(dir),150); }
+    else if(!moved){ onNext(1); }
+    else { el.style.transition='transform .34s cubic-bezier(.2,.9,.25,1),opacity .3s'; el.style.transform='none'; el.style.opacity='1'; }
+  };
+  el.addEventListener('pointerup',end); el.addEventListener('pointercancel',end);
+}
+attachSwipe(gcard, (dir)=>{ // if flung, card already offscreen -> just repaint via drawCard variant
+  if(animating) return;
+  const data=currentCardData(); vibrate(12);
+  paintCard(gcard,cChip,cText,data);
+  gcard.style.transition='none'; gcard.style.transform=`translateX(${dir*46}px) scale(.94)`; gcard.style.opacity='0';
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{ gcard.style.transition='transform .4s cubic-bezier(.2,.9,.25,1),opacity .3s'; gcard.style.transform='translateX(0) scale(1)'; gcard.style.opacity='1'; }));
+});
+
+/* ============================ KATEGORIEN ============================ */
+let katBag=[],katPos=0,katTimerId=null,katLeft=0;
+function startKat(){ katBag=makeBag(KATEGORIEN.length); katPos=0; stopKatTimer(); $('#katWord').textContent='Tippe auf „Neue Kategorie"'; $('#ringNum').textContent='30'; $('#ring').style.setProperty('--p',0); }
+function nextKat(){ if(katPos>=katBag.length){katBag=makeBag(KATEGORIEN.length);katPos=0;} const w=KATEGORIEN[katBag[katPos++]]; const el=$('#katWord'); el.style.opacity=0; el.style.transform='translateY(10px)'; setTimeout(()=>{ el.textContent=w; el.style.transition='.3s'; el.style.opacity=1; el.style.transform='none'; },120); vibrate(12); stopKatTimer(); $('#ringNum').textContent='30'; $('#ring').style.setProperty('--p',0); }
+function stopKatTimer(){ if(katTimerId){clearInterval(katTimerId);katTimerId=null;} $('#katTimer').textContent='▶︎ Timer'; }
+function toggleKatTimer(){
+  if(katTimerId){ stopKatTimer(); return; }
+  katLeft=30; $('#katTimer').textContent='⏸ Stop';
+  $('#ringNum').textContent=katLeft; $('#ring').style.setProperty('--p',0);
+  katTimerId=setInterval(()=>{
+    katLeft--; $('#ringNum').textContent=Math.max(0,katLeft); $('#ring').style.setProperty('--p',((30-katLeft)/30)*100);
+    if(katLeft<=5&&katLeft>0) vibrate(20);
+    if(katLeft<=0){ stopKatTimer(); $('#ringNum').textContent='!'; $('#katWord').textContent='Zeit um! Wer stockt, trinkt 🍺'; vibrate([30,60,120]); }
+  },1000);
+}
+$('#katNext').addEventListener('click',nextKat);
+$('#katTimer').addEventListener('click',toggleKatTimer);
+
+/* ============================ TICK TICK BUMM ============================ */
+let bummId=null,bummTickId=null,bummArmed=false;
+const bummOrb=$('#bummOrb'),bummTxt=$('#bummTxt'),bummBtn=$('#bummBtn'),bummTaskEl=$('#bummTask');
+function resetBumm(){ clearBumm(); bummArmed=false; bummOrb.className='bummorb'; bummOrb.textContent='💣'; bummTxt.textContent='Handy rumgeben. Beim BUMM in der Hand = trinken!'; bummTaskEl.textContent=''; bummBtn.textContent='Bombe scharf machen 💥'; }
+function clearBumm(){ if(bummId){clearTimeout(bummId);bummId=null;} if(bummTickId){clearInterval(bummTickId);bummTickId=null;} }
+function armBumm(){
+  clearBumm(); bummArmed=true; bummOrb.className='bummorb'; bummOrb.textContent='💣';
+  bummTaskEl.textContent=BUMM_TASKS[(Math.random()*BUMM_TASKS.length)|0];
+  bummTxt.textContent='Läuft! Schnell weitergeben …'; bummBtn.textContent='Läuft …';
+  const total=10000+Math.random()*30000; const start=Date.now();
+  bummTickId=setInterval(()=>{
+    const el=Date.now()-start; const frac=el/total; const gap=Math.max(140, 620-frac*520);
+    if((el%Math.round(gap))<60){ bummOrb.classList.remove('tick'); void bummOrb.offsetWidth; bummOrb.classList.add('tick'); vibrate(18); }
+  },60);
+  bummId=setTimeout(()=>{
+    clearBumm(); bummArmed=false; bummOrb.className='bummorb boom'; bummOrb.textContent='💥';
+    bummTxt.textContent='BUMM! Wer’s hält, trinkt 🍺'; bummBtn.textContent='Nochmal 💥'; vibrate([80,50,200]);
+  }, total);
+}
+bummBtn.addEventListener('click',()=>{ vibrate(14); armBumm(); });
+
+/* ============================ REGEL-KARTEN ============================ */
+const rText=$('#rText');
+function resetRegelCard(){ rText.textContent='Zieh eine Regel, die den ganzen Abend gilt.'; }
+function drawRule(){
+  const available=REGELN.map((r,i)=>i).filter(i=>!state.activeRules.some(a=>a.idx===i));
+  if(!available.length){ toast('Alle Regeln sind schon aktiv! 📜'); return; }
+  const idx=available[(Math.random()*available.length)|0];
+  const text=fill(REGELN[idx], activePlayers());
+  state.activeRules.push({idx,text}); save(); refreshRuleChips(); renderRuleList();
+  vibrate(14);
+  const c=$('#rcard');
+  c.style.transition='none'; c.style.transform='translateY(30px) scale(.94)'; c.style.opacity='0';
+  rText.textContent=text;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{ c.style.transition='transform .45s cubic-bezier(.2,.9,.25,1),opacity .35s'; c.style.transform='none'; c.style.opacity='1'; }));
+  toast('Regel aktiviert 📜');
+}
+$('#rDraw').addEventListener('click',drawRule);
+
+/* ============================ RULES SHEET ============================ */
+function refreshRuleChips(){ const n=state.activeRules.length; ['#rc1','#rc2','#rc3','#rc4'].forEach(s=>{const el=$(s); if(el) el.textContent=n;}); }
+function renderRuleList(){
+  const list=$('#ruleList'); list.innerHTML='';
+  if(!state.activeRules.length){ list.innerHTML='<div class="empty">Noch keine Dauer-Regeln aktiv.<br>Zieh welche im Modus „Regel-Karten".</div>'; return; }
+  state.activeRules.forEach((r,i)=>{
+    const el=document.createElement('div'); el.className='rule-item';
+    el.innerHTML=`<span class="del">✕</span>${r.text}`;
+    el.querySelector('.del').addEventListener('click',()=>{ state.activeRules.splice(i,1); save(); refreshRuleChips(); renderRuleList(); vibrate(8); });
+    list.append(el);
+  });
+}
+$$('[data-open-rules]').forEach(b=>b.addEventListener('click',()=>{ renderRuleList(); $('#rulesSheet').classList.add('open'); vibrate(8); }));
+$('#rulesSheet').addEventListener('click',e=>{ if(e.target.id==='rulesSheet') $('#rulesSheet').classList.remove('open'); });
+$('#clearRules').addEventListener('click',()=>{ state.activeRules=[]; save(); refreshRuleChips(); renderRuleList(); toast('Alle Regeln aufgehoben'); });
+
+/* ============================ SETTINGS ============================ */
+function openSettings(){ syncSettings(); renderAllPlayers(); go('s-set'); }
+$('#homeSettings').addEventListener('click',openSettings);
+$('#menuSettings').addEventListener('click',openSettings);
+$('#setBack').addEventListener('click',()=>{ if(activePlayers().length>=2){ go('s-menu'); buildMenu(); } else go('s-home'); });
+function syncSettings(){
+  $('#swZahm').classList.toggle('on', state.settings.zahm);
+  $('#swVib').classList.toggle('on', state.settings.vibration);
+  $$('#segInt button').forEach(b=>b.classList.toggle('on', b.dataset.int===state.settings.intensity));
+}
+$('#swZahm').addEventListener('click',()=>{ state.settings.zahm=!state.settings.zahm; save(); syncSettings(); vibrate(10); toast(state.settings.zahm?'Zahm-Modus an – derbe Karten raus':'Zahm-Modus aus'); });
+$('#swVib').addEventListener('click',()=>{ state.settings.vibration=!state.settings.vibration; save(); syncSettings(); vibrate(20); });
+$$('#segInt button').forEach(b=>b.addEventListener('click',()=>{ state.settings.intensity=b.dataset.int; save(); syncSettings(); vibrate(10); }));
+$('#resetBtn').addEventListener('click',()=>{
+  if(!confirm('Wirklich alles zurücksetzen? Spieler, Regeln und Einstellungen werden gelöscht.')) return;
+  state={players:['',''],settings:{zahm:false,intensity:'normal',vibration:true},activeRules:[]};
+  save(); renderAllPlayers(); syncSettings(); refreshRuleChips(); toast('Zurückgesetzt'); go('s-home');
+});
+
+/* ============================ TOAST ============================ */
+let toastId=null;
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); if(toastId)clearTimeout(toastId); toastId=setTimeout(()=>t.classList.remove('show'),2000); }
+
+/* ============================ INIT ============================ */
+renderAllPlayers(); syncSettings(); refreshRuleChips();
+$('#ver').textContent='Dorfkind · offline · '+MAIN.length+' Hauptkarten';
+
+if('serviceWorker' in navigator){ window.addEventListener('load',()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); }); }
+// expose counts for self-check
+window.__counts={main:MAIN.length,nochnie:NOCHNIE.length,werwuerde:WERWUERDE.length,kategorien:KATEGORIEN.length,regeln:REGELN.length};
+</script>
+</body>
+</html>
