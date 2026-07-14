@@ -314,6 +314,10 @@ h1,h2,h3,.serif{font-family:Georgia,"Times New Roman",serif}
         <div class="lbl"><b>Vibration</b><small>Haptisches Feedback beim Kartenwechsel</small></div>
         <div class="switch" id="swVib"><div class="knob"></div></div>
       </div>
+      <div class="set-row">
+        <div class="lbl"><b>Sound</b><small>Explosions-Knall beim BUMM</small></div>
+        <div class="switch" id="swSound"><div class="knob"></div></div>
+      </div>
       <div class="set-row" style="border-bottom:none;flex-direction:column;align-items:stretch;gap:10px">
         <div class="lbl"><b>Spieler verwalten</b></div>
         <div id="playersSet"></div>
@@ -682,11 +686,67 @@ const KEY='dorfkind_v1';
 let state = load();
 function load(){
   try{ const s=JSON.parse(localStorage.getItem(KEY)); if(s&&s.players) return s; }catch(e){}
-  return {players:['','' ], settings:{zahm:false,intensity:'normal',vibration:true}, activeRules:[]};
+  return {players:['','' ], settings:{zahm:false,intensity:'normal',vibration:true,sound:true}, activeRules:[]};
 }
 function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
 
 function vibrate(ms){ if(state.settings.vibration && navigator.vibrate){ try{navigator.vibrate(ms);}catch(e){} } }
+
+/* ---- Web-Audio: prozeduraler Explosions-Sound (offline, kein Asset) ---- */
+let _actx=null;
+function soundOn(){ return state.settings.sound!==false; } // Default AN, auch für Alt-States ohne Flag
+function getCtx(){
+  if(_actx) return _actx;
+  try{ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null; _actx=new AC(); }
+  catch(e){ _actx=null; }
+  return _actx;
+}
+// Beim ersten User-Tap aufrufen -> hebt Autoplay-Sperre auf (iOS/Android)
+function unlockAudio(){
+  const ctx=getCtx(); if(!ctx) return;
+  try{ if(ctx.state==='suspended') ctx.resume(); }catch(e){}
+}
+function playExplosion(){
+  if(!soundOn()) return;
+  const ctx=getCtx(); if(!ctx) return;
+  try{
+    if(ctx.state==='suspended'){ try{ctx.resume();}catch(e){} }
+    const now=ctx.currentTime;
+    const master=ctx.createGain(); master.gain.value=0.9; master.connect(ctx.destination);
+    // 1) Gefilterter Noise-Burst (das „Krachen")
+    const dur=0.9, n=Math.max(1,Math.floor(ctx.sampleRate*dur));
+    const buf=ctx.createBuffer(1,n,ctx.sampleRate), data=buf.getChannelData(0);
+    for(let i=0;i<n;i++){ const env=Math.pow(1-i/n,2); data[i]=(Math.random()*2-1)*env; }
+    const noise=ctx.createBufferSource(); noise.buffer=buf;
+    const nf=ctx.createBiquadFilter(); nf.type='lowpass';
+    nf.frequency.setValueAtTime(2400,now); nf.frequency.exponentialRampToValueAtTime(180,now+0.5);
+    const ng=ctx.createGain(); ng.gain.setValueAtTime(1.0,now); ng.gain.exponentialRampToValueAtTime(0.001,now+0.8);
+    noise.connect(nf); nf.connect(ng); ng.connect(master);
+    noise.start(now); noise.stop(now+dur);
+    // 2) Sub-Boom (tiefer Sinus mit fallender Frequenz)
+    const osc=ctx.createOscillator(); osc.type='sine';
+    osc.frequency.setValueAtTime(160,now); osc.frequency.exponentialRampToValueAtTime(34,now+0.6);
+    const og=ctx.createGain(); og.gain.setValueAtTime(0.0001,now);
+    og.gain.exponentialRampToValueAtTime(1.0,now+0.02); og.gain.exponentialRampToValueAtTime(0.001,now+0.9);
+    osc.connect(og); og.connect(master); osc.start(now); osc.stop(now+1.0);
+    // 3) Kurzer Knack-Transient (Attack/„Punch")
+    const cr=ctx.createOscillator(); cr.type='square';
+    cr.frequency.setValueAtTime(90,now); cr.frequency.exponentialRampToValueAtTime(30,now+0.1);
+    const cg=ctx.createGain(); cg.gain.setValueAtTime(0.5,now); cg.gain.exponentialRampToValueAtTime(0.001,now+0.15);
+    cr.connect(cg); cg.connect(master); cr.start(now); cr.stop(now+0.2);
+  }catch(e){}
+}
+function playTick(){
+  if(!soundOn()) return;
+  const ctx=getCtx(); if(!ctx||ctx.state!=='running') return; // vor Unlock still bleiben
+  try{
+    const now=ctx.currentTime;
+    const o=ctx.createOscillator(); o.type='square'; o.frequency.setValueAtTime(1650,now);
+    const g=ctx.createGain(); g.gain.setValueAtTime(0.0001,now);
+    g.gain.exponentialRampToValueAtTime(0.06,now+0.004); g.gain.exponentialRampToValueAtTime(0.0001,now+0.045);
+    o.connect(g); g.connect(ctx.destination); o.start(now); o.stop(now+0.06);
+  }catch(e){}
+}
 
 /* ---- text helpers ---- */
 function schluck(n){
@@ -888,14 +948,14 @@ function armBumm(){
   const total=10000+Math.random()*30000; const start=Date.now();
   bummTickId=setInterval(()=>{
     const el=Date.now()-start; const frac=el/total; const gap=Math.max(140, 620-frac*520);
-    if((el%Math.round(gap))<60){ bummOrb.classList.remove('tick'); void bummOrb.offsetWidth; bummOrb.classList.add('tick'); vibrate(18); }
+    if((el%Math.round(gap))<60){ bummOrb.classList.remove('tick'); void bummOrb.offsetWidth; bummOrb.classList.add('tick'); vibrate(18); playTick(); }
   },60);
   bummId=setTimeout(()=>{
     clearBumm(); bummArmed=false; bummOrb.className='bummorb boom'; bummOrb.textContent='💥';
-    bummTxt.textContent='BUMM! Wer’s hält, trinkt 🍺'; bummBtn.textContent='Nochmal 💥'; vibrate([80,50,200]);
+    bummTxt.textContent='BUMM! Wer’s hält, trinkt 🍺'; bummBtn.textContent='Nochmal 💥'; vibrate([80,50,200]); playExplosion();
   }, total);
 }
-bummBtn.addEventListener('click',()=>{ vibrate(14); armBumm(); });
+bummBtn.addEventListener('click',()=>{ unlockAudio(); vibrate(14); armBumm(); });
 
 /* ============================ REGEL-KARTEN ============================ */
 const rText=$('#rText');
@@ -939,14 +999,16 @@ $('#setBack').addEventListener('click',()=>{ if(activePlayers().length>=2){ go('
 function syncSettings(){
   $('#swZahm').classList.toggle('on', state.settings.zahm);
   $('#swVib').classList.toggle('on', state.settings.vibration);
+  $('#swSound').classList.toggle('on', state.settings.sound!==false);
   $$('#segInt button').forEach(b=>b.classList.toggle('on', b.dataset.int===state.settings.intensity));
 }
 $('#swZahm').addEventListener('click',()=>{ state.settings.zahm=!state.settings.zahm; save(); syncSettings(); vibrate(10); toast(state.settings.zahm?'Zahm-Modus an – derbe Karten raus':'Zahm-Modus aus'); });
 $('#swVib').addEventListener('click',()=>{ state.settings.vibration=!state.settings.vibration; save(); syncSettings(); vibrate(20); });
+$('#swSound').addEventListener('click',()=>{ state.settings.sound=(state.settings.sound===false); save(); syncSettings(); unlockAudio(); vibrate(20); if(state.settings.sound) playTick(); });
 $$('#segInt button').forEach(b=>b.addEventListener('click',()=>{ state.settings.intensity=b.dataset.int; save(); syncSettings(); vibrate(10); }));
 $('#resetBtn').addEventListener('click',()=>{
   if(!confirm('Wirklich alles zurücksetzen? Spieler, Regeln und Einstellungen werden gelöscht.')) return;
-  state={players:['',''],settings:{zahm:false,intensity:'normal',vibration:true},activeRules:[]};
+  state={players:['',''],settings:{zahm:false,intensity:'normal',vibration:true,sound:true},activeRules:[]};
   save(); renderAllPlayers(); syncSettings(); refreshRuleChips(); toast('Zurückgesetzt'); go('s-home');
 });
 
